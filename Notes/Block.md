@@ -56,12 +56,23 @@
 ## block中引用变量
 
   ```objc
+  @interface Person : NSObject
+  @property (nonatomic, copy) NSString *name;
+  @end
+
+  @implementation Person
+  @end
+
   int c = 4;
   void testBlock() {
       int a = 3;
       static int b = 5;
+      Person *p = [[Person alloc] init];
+      p.name = @"zhangSan";
+      __weak typeof(p) p1 = p;
+
       void(^block)(void) = ^{
-          NSLog(@"%d %d %d",a, b , c);
+          NSLog(@"%d %d %d %@ %@",a, b , c, p, p1);
       };
   }
   ```
@@ -75,12 +86,13 @@
     struct __block_impl impl;
     struct __testBlock_block_desc_0* Desc;
     
-    // 结构体内部会新增两个变量保存传递过来的a和b的值 这里的a和b和传进来的a和b是独立的
-    // 也就是说局部变量会被copy一份到结构体内部
+    // 结构体内部会新增变量保存传递过来的局部变量的值 这里定义的变量和传递进来的变量是完成独立的
     int a; 
     int *b;
+    Person *__strong p; // 外面定义的局部变量是用什么修饰 这里就是用什么修饰
+    Person *__weak p1;
     
-    __testBlock_block_impl_0(void *fp, struct __testBlock_block_desc_0 *desc, int _a, int *_b, int flags=0) : a(_a), b(_b) {
+    __testBlock_block_impl_0(void *fp, struct __testBlock_block_desc_0 *desc, int _a, int *_b, Person *__strong _p, Person *__weak _p1, int flags=0) : a(_a), b(_b), p(_p), p1(_p1) {
       impl.isa = &_NSConcreteStackBlock;
       impl.Flags = flags;
       impl.FuncPtr = fp;
@@ -91,26 +103,42 @@
   static void __testBlock_block_func_0(struct __testBlock_block_impl_0 *__cself) {
     int a = __cself->a; // bound by copy
     int *b = __cself->b; // bound by copy
+    Person *__strong p = __cself->p; // bound by copy
+    Person *__weak p1 = __cself->p1; // bound by copy
  
-    // 访问结构体自己的局部变量a和b，全局变量c的值可以直接访问
-    NSLog((NSString *)&__NSConstantStringImpl__var_folders_6__qrgykwmd2_g_zcqhyrtwzr240000gn_T_main1_dda951_mi_1,a, (*b) , c);
+    // 访问结构体自己的内部定义的变量，全局变量c的值可以直接访问
+    NSLog((NSString *)&__NSConstantStringImpl__var_folders_6__qrgykwmd2_g_zcqhyrtwzr240000gn_T_main1_3e09c7_mi_1,a, (*b) , c, p, p1);
   }
+
+  // 当block被copy到堆上时，会根据 结构体内部 对象类型 的修饰符 对block内部引用的 对象的引用计数加1
+  static void __testBlock_block_copy_0(struct __testBlock_block_impl_0*dst, struct __testBlock_block_impl_0*src) {_Block_object_assign((void*)&dst->p, (void*)src->p, 3/*BLOCK_FIELD_IS_OBJECT*/);_Block_object_assign((void*)&dst->p1, (void*)src->p1, 3/*BLOCK_FIELD_IS_OBJECT*/);}
+  
+  // 当block从堆上移除，会根据 结构体内部 对象类型 的修饰符 对block内部引用的 对象的引用计数减1
+  static void __testBlock_block_dispose_0(struct __testBlock_block_impl_0*src) {_Block_object_dispose((void*)src->p, 3/*BLOCK_FIELD_IS_OBJECT*/);_Block_object_dispose((void*)src->p1, 3/*BLOCK_FIELD_IS_OBJECT*/);}
 
   static struct __testBlock_block_desc_0 {
     size_t reserved;
     size_t Block_size;
-  } __testBlock_block_desc_0_DATA = { 0, sizeof(struct __testBlock_block_impl_0)};
+    void (*copy)(struct __testBlock_block_impl_0*, struct __testBlock_block_impl_0*);
+    void (*dispose)(struct __testBlock_block_impl_0*);
+  } __testBlock_block_desc_0_DATA = { 0, sizeof(struct __testBlock_block_impl_0), __testBlock_block_copy_0, __testBlock_block_dispose_0};
   
   void testBlock() {
       int a = 3;
       static int b = 5;
-      // 当我们 定义一个block时，会将 局部变量a的值、静态变量的指针 传递给结构体，注意并没有将全局变量c的任何东西传递给结构体
-      void(*block)(void) = ((void (*)())&__testBlock_block_impl_0((void *)__testBlock_block_func_0, &__testBlock_block_desc_0_DATA, a, &b));
+      // 对象类型的局部变量，会重新实例化一个全新的实例传递给结构体，跟外面的对象没有半毛钱关系，所以block里面无法修改局部变量的值。
+      Person *p = ((Person *(*)(id, SEL))(void *)objc_msgSend)((id)((Person *(*)(id, SEL))(void *)objc_msgSend)((id)objc_getClass("Person"), sel_registerName("alloc")), sel_registerName("init"));
+      ((void (*)(id, SEL, NSString *))(void *)objc_msgSend)((id)p, sel_registerName("setName:"), (NSString *)&__NSConstantStringImpl__var_folders_6__qrgykwmd2_g_zcqhyrtwzr240000gn_T_main1_3e09c7_mi_0);
+      
+      __attribute__((objc_ownership(weak))) typeof(p) p1 = p;
+      
+      // 当我们 定义一个block时，会将 局部变量的值、静态变量的指针 传递给结构体，注意并没有将全局变量c的任何东西传递给结构体
+      void(*block)(void) = ((void (*)())&__testBlock_block_impl_0((void *)__testBlock_block_func_0, &__testBlock_block_desc_0_DATA, a, &b, p, p1, 570425344));
   }
   ```
   
   * **局部变量**  
-    局部变量的值会被完整的copy一份保存在结构体内部。block里面的局部变量和外面的变量是完全独立的存在，所以不能在block里面直接修改局部变量的值
+    局部变量的值会被完整的copy一份保存在结构体内部。block里面的局部变量和外面的变量是完全独立的存在，所以不能在block里面直接修改局部变量的值。如果局部变量是一个对象类型，则block内部会根据定义局部变量时使用的修饰符（strong， weak）在结构体内部相应的**强/弱**引用该局部变量，也因此会造成循环引用
   
   * **全局变量**  
     全局变量不会被结构体持有。block里面可以直接访问和修改全局变量
@@ -133,10 +161,10 @@
   // 被__block 修饰的变量 底层实际上是这么一个结构体
   struct __Block_byref_a_1 {
     void *__isa;
-    __Block_byref_a_1 *__forwarding;
+    __Block_byref_a_1 *__forwarding; // 指向自己的一个指针
     int __flags;
     int __size;
-    int a;
+    int a; // 当初局部变量的值
   };
 
   struct __testBlock_block_impl_0 {
@@ -178,7 +206,12 @@
       __attribute__((__blocks__(byref))) __Block_byref_a_1 a = {(void*)0,(__Block_byref_a_1 *)&a, 0, sizeof(__Block_byref_a_1), 3};
       void(*block)(void) = ((void (*)())&__testBlock_block_impl_0((void *)__testBlock_block_func_0, &__testBlock_block_desc_0_DATA, (__Block_byref_a_1 *)&a, 570425344));
   }
+  
   ```
+  
+  当使用__block修饰一个局部变量时，该变量会被包装成一个__Block_byref_a_1类型的结构体，然后将该结构体指针传递到block内部，所以可以在block内部修改局部变量的值，注意此时修改的是局部变量对应的结构体里面保存的值
+  
+  ## block循环引用
   
   ## block 类型
   
@@ -186,7 +219,11 @@
     没有访问任何局部变量的block，在内存中存储在**数据段**
 
   * **__NSStackBlock__**  
-    访问了局部变量的block，在内存中存储在**栈空间**
+    访问了局部变量的block，在内存中存储在**栈空间**。ARC环境下编译器会对该类型的block做优化，将block自动copy到堆上：
+    1. block作为函数返回值时
+    2. 将block赋值给__strong指针时
+    3. block作为Cocoa API中方法名含有usingBlock的方法参数时
+    4. block作为GCD API的方法参数时
     
   * **__NSMallocBlock__**   
     __NSStackBlock__ 调用copy，在内存中存储在**堆空间**
