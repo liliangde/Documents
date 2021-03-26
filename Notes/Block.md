@@ -126,7 +126,7 @@
   void testBlock() {
       int a = 3;
       static int b = 5;
-      // 对象类型的局部变量，会重新实例化一个全新的实例传递给结构体，跟外面的对象没有半毛钱关系，所以block里面无法修改局部变量的值。
+      
       Person *p = ((Person *(*)(id, SEL))(void *)objc_msgSend)((id)((Person *(*)(id, SEL))(void *)objc_msgSend)((id)objc_getClass("Person"), sel_registerName("alloc")), sel_registerName("init"));
       ((void (*)(id, SEL, NSString *))(void *)objc_msgSend)((id)p, sel_registerName("setName:"), (NSString *)&__NSConstantStringImpl__var_folders_6__qrgykwmd2_g_zcqhyrtwzr240000gn_T_main1_3e09c7_mi_0);
       
@@ -204,6 +204,7 @@
   
   void testBlock() {
       __attribute__((__blocks__(byref))) __Block_byref_a_1 a = {(void*)0,(__Block_byref_a_1 *)&a, 0, sizeof(__Block_byref_a_1), 3};
+      // 这里传递的是a结构体的地址，所以block内部可以修改a的值，注意修改的也是a这个结构体里面保存的a的值
       void(*block)(void) = ((void (*)())&__testBlock_block_impl_0((void *)__testBlock_block_func_0, &__testBlock_block_desc_0_DATA, (__Block_byref_a_1 *)&a, 570425344));
   }
   
@@ -213,7 +214,7 @@
   
   ## block 类型
   
-  * **__NSGlobalBlock__**  
+  * **__NSGlobalBlock__**  局部static变量算不算？？
     没有访问任何局部变量的block，在内存中存储在**数据段**
 
   * **__NSStackBlock__**  
