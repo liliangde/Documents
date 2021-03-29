@@ -51,7 +51,7 @@
   }
    
   ```
-  从上面代码可以看出 **block** 的底层实现其实是一个 **__testBlock_block_impl_0** 的结构体，当我们定义一个block时，实际上时创建了一个对应的结构体变量，该结构体接受两个参数 **fp** 和 **desc** 分别将block的*实现方法*和block的*描述信息*传给该结构体
+  从上面代码可以看出 **block** 的底层实现其实是一个 **__testBlock_block_impl_0** 的结构体，当我们定义一个block时，实际上时创建了一个对应的结构体变量，该结构体接受两个参数 **fp** 和 **desc** 分别将block的**实现方法**和block的**描述信息**传给该结构体
 
 ## block中引用变量
 
@@ -138,13 +138,19 @@
   ```
   
   * **局部变量**  
-    局部变量的值会被完整的copy一份保存在结构体内部。block里面的局部变量和外面的变量是完全独立的存在，所以不能在block里面直接修改局部变量的值。如果局部变量是一个对象类型，则block内部会根据定义局部变量时使用的修饰符（strong， weak）在结构体内部相应的**强/弱**引用该局部变量，也因此会造成循环引用
-  
+    1. 局部变量的值会被完整的copy一份保存在结构体内部。block里面的局部变量和外面的变量是完全独立的存在，所以不能在block里面直接修改局部变量的值。   
+    2. 如果局部变量是对象类型时，会同时生成两个函数 **copy** 和 **dispose** 。
+    3. 当block被copy到堆上面时，会调用上面两个函数根据对象的修饰符（strong，weak）对象进行相应的内存管理
+    4. 如果block存在栈上，择不会调用两个函数对对象进行相应的内存管理，也即 栈上的block不会强引用对象
+   
   * **全局变量**  
     全局变量不会被结构体持有。block里面可以直接访问和修改全局变量
 
   * **静态变量**   
-    会将静态变量的指针copy一份保存在结构体内部。因此block内部可以直接修改静态变量的值
+    1. 全局静态变量  
+       不会被block持有，block里面可以直接访问和修改
+    2. 局部静态变量 
+       会将静态变量的指针copy一份保存在结构体内部。因此block内部可以直接修改静态变量的值
 
 ## __block底层实现
 
@@ -210,20 +216,25 @@
   
   ```
   
-  当使用__block修饰一个局部变量时，该变量会被包装成一个__Block_byref_a_1类型的结构体，然后将该结构体指针传递到block内部，所以可以在block内部修改局部变量的值，注意此时修改的是局部变量对应的结构体里面保存的值
+  当使用__block修饰一个局部变量时，该变量会被包装成一个__Block_byref_a_1类型的结构体，然后将该结构体指针传递到block内部，所以可以在block内部修改局部变量的值，注意此时修改的是局部变量对应的结构体里面保存的值  
+  
+  结构体内部有一个 **__forwarding** 的指针，当block在栈上时，该指针指向自己，当block被copy到堆上时，该指针指向堆上的block，如下图：  
+  ![forwarding](https://github.com/liliangde/Images/blob/main/__forwarding.png?raw=true)
+  
   
   ## block 类型
   
-  * **__NSGlobalBlock__**  局部static变量算不算？？
-    没有访问任何局部变量的block，在内存中存储在**数据段**
+  * **__NSGlobalBlock__**   
+    没有访问任何局部变量的block，在内存中存储在**数据段**，对其进行copy操作，什么都不会做。
 
   * **__NSStackBlock__**  
-    访问了局部变量的block，在内存中存储在**栈空间**。ARC环境下编译器会对该类型的block做优化，将block自动copy到堆上：
-    1. block作为函数返回值时
-    2. 将block赋值给__strong指针时
-    3. block作为Cocoa API中方法名含有usingBlock的方法参数时
-    4. block作为GCD API的方法参数时
+    访问了局部变量的block，在内存中存储在**栈空间**。对其进行copy操作，会将其从栈空间拷贝到堆空间。  
+    ARC环境下编译器会对该类型的block做优化，将block自动copy到堆上：
+      1. block作为函数返回值时
+      2. 将block赋值给__strong指针时
+      3. block作为Cocoa API中方法名含有usingBlock的方法参数时
+      4. block作为GCD API的方法参数时
     
   * **__NSMallocBlock__**   
-    __NSStackBlock__ 调用copy，在内存中存储在**堆空间**
+    __NSStackBlock__ 调用copy，在内存中存储在**堆空间**，对其进行copy操作，会使其引用计数加1。 
   
