@@ -155,15 +155,36 @@
 ## __block底层实现
 
   ```objc
+  @interface Person : NSObject
+  @property (nonatomic, copy) NSString *name;
+  @end
+
+  @implementation Person
+  @end
+
   void testBlock() {
-    __block int a = 3;
-    void(^block)(void) = ^{
-        NSLog(@"%d",a);
-    };
+      Person *p = [Person new];
+      __block Person *p1 = p;
+      __block int a = 3;
+
+      void(^block)(void) = ^{
+          NSLog(@"%d %@",a, p1);
+      };
   }
   ```
   对应c++实现：
   ```c++
+  // 对象类型__block对应的结构体
+  struct __Block_byref_p1_0 {
+    void *__isa;
+  __Block_byref_p1_0 *__forwarding;
+   int __flags;
+   int __size;
+   void (*__Block_byref_id_object_copy)(void*, void*); // 当block被copy到堆上时，会调用该方法对该结构体变量进行相应的内存管理
+   void (*__Block_byref_id_object_dispose)(void*);
+   Person *__strong p1;
+  };
+  
   // 被__block 修饰的变量 底层实际上是这么一个结构体
   struct __Block_byref_a_1 {
     void *__isa;
@@ -180,7 +201,9 @@
     // block里面持有该变量对应的结构体变量的指针
     __Block_byref_a_1 *a; // by ref
     
-    __testBlock_block_impl_0(void *fp, struct __testBlock_block_desc_0 *desc, __Block_byref_a_1 *_a, int flags=0) : a(_a->__forwarding) {
+    __Block_byref_p1_0 *p1; // by ref
+    
+    __testBlock_block_impl_0(void *fp, struct __testBlock_block_desc_0 *desc, __Block_byref_a_1 *_a, __Block_byref_p1_0 *_p1, int flags=0) : a(_a->__forwarding), p1(_p1->__forwarding) {
       impl.isa = &_NSConcreteStackBlock;
       impl.Flags = flags;
       impl.FuncPtr = fp;
@@ -190,9 +213,10 @@
   
   static void __testBlock_block_func_0(struct __testBlock_block_impl_0 *__cself) {
       __Block_byref_a_1 *a = __cself->a; // bound by ref
+      __Block_byref_p1_0 *p1 = __cself->p1; // bound by ref
       
       // block方法内部访问的也是变量对应的结构体指针
-      NSLog((NSString *)&__NSConstantStringImpl__var_folders_6__qrgykwmd2_g_zcqhyrtwzr240000gn_T_main1_97e46b_mi_1,(a->__forwarding->a));
+      NSLog((NSString *)&__NSConstantStringImpl__var_folders_6__qrgykwmd2_g_zcqhyrtwzr240000gn_T_main1_27da96_mi_0,(a->__forwarding->a), (p1->__forwarding->p1));
    }
    
   // 该方法会在block被copy到堆上面时，对局部变量对应的结构体变量的引用计数加1
@@ -209,18 +233,19 @@
   } __testBlock_block_desc_0_DATA = { 0, sizeof(struct __testBlock_block_impl_0), __testBlock_block_copy_0, __testBlock_block_dispose_0};
   
   void testBlock() {
+      Person *p = ((Person *(*)(id, SEL))(void *)objc_msgSend)((id)objc_getClass("Person"), sel_registerName("new"));
+      __attribute__((__blocks__(byref))) __Block_byref_p1_0 p1 = {(void*)0,(__Block_byref_p1_0 *)&p1, 33554432, sizeof(__Block_byref_p1_0), __Block_byref_id_object_copy_131, __Block_byref_id_object_dispose_131, p};
       __attribute__((__blocks__(byref))) __Block_byref_a_1 a = {(void*)0,(__Block_byref_a_1 *)&a, 0, sizeof(__Block_byref_a_1), 3};
       // 这里传递的是a结构体的地址，所以block内部可以修改a的值，注意修改的也是a这个结构体里面保存的a的值
-      void(*block)(void) = ((void (*)())&__testBlock_block_impl_0((void *)__testBlock_block_func_0, &__testBlock_block_desc_0_DATA, (__Block_byref_a_1 *)&a, 570425344));
+      void(*block)(void) = ((void (*)())&__testBlock_block_impl_0((void *)__testBlock_block_func_0, &__testBlock_block_desc_0_DATA, (__Block_byref_a_1 *)&a, (__Block_byref_p1_0 *)&p1, 570425344));
   }
   
   ```
   
-  当使用__block修饰一个局部变量时，该变量会被包装成一个__Block_byref_a_1类型的结构体，然后将该结构体指针传递到block内部，所以可以在block内部修改局部变量的值，注意此时修改的是局部变量对应的结构体里面保存的值  
-  
-  结构体内部有一个 **__forwarding** 的指针，当block在栈上时，该指针指向自己，当block被copy到堆上时，该指针指向堆上的block，如下图：  
+  1. 当使用__block修饰一个局部变量时，该变量会被包装成一个__Block_byref_a_1类型的结构体，然后将该结构体指针传递到block内部，所以可以在block内部修改局部变量的值，注意此时修改的是局部变量对应的结构体里面保存的值  
+  2. 当__block 修饰的是一个对象类型时，会在结构体内部生成两个函数 **__Block_byref_id_object_copy** 和 **__Block_byref_id_object_dispose** 当__block变量被copy到堆上时，会通过__block变量的修饰符（strong， weak）来强/弱引用__block变量
+  3. 结构体内部有一个 **__forwarding** 的指针，当block在栈上时，该指针指向自己，当block被copy到堆上时，该指针指向堆上的block，如下图：  
   ![forwarding](https://github.com/liliangde/Images/blob/main/__forwarding.png?raw=true)
-  
   
   ## block 类型
   
