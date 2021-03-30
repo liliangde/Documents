@@ -243,7 +243,7 @@
   ```
   
   1. 当使用__block修饰一个局部变量时，该变量会被包装成一个__Block_byref_a_1类型的结构体，然后将该结构体指针传递到block内部，所以可以在block内部修改局部变量的值，注意此时修改的是局部变量对应的结构体里面保存的值  
-  2. 当__block 修饰的是一个对象类型时，会在结构体内部生成两个函数 **__Block_byref_id_object_copy** 和 **__Block_byref_id_object_dispose** 当__block变量被copy到堆上时，会通过__block变量的修饰符（strong， weak）来强/弱引用__block变量
+  2. 当__block 修饰的是一个对象类型时，会在结构体内部生成两个函数 **__Block_byref_id_object_copy** 和 **__Block_byref_id_object_dispose** 当__block变量被copy到堆上时，会通过__block变量的修饰符（strong， weak）来强/弱引用对象
   3. 结构体内部有一个 **__forwarding** 的指针，当block在栈上时，该指针指向自己，当block被copy到堆上时，该指针指向堆上的block，如下图：  
   ![forwarding](https://github.com/liliangde/Images/blob/main/__forwarding.png?raw=true)
   
