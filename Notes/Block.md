@@ -53,7 +53,7 @@
   ```
   从上面代码可以看出 **block** 的底层实现其实是一个 **__testBlock_block_impl_0** 的结构体，当我们定义一个block时，实际上时创建了一个对应的结构体变量，该结构体接受两个参数 **fp** 和 **desc** 分别将block的**实现方法**和block的**描述信息**传给该结构体
 
-## block中引用变量
+## block中访问变量
 
   ```objc
   @interface Person : NSObject
@@ -110,10 +110,10 @@
     NSLog((NSString *)&__NSConstantStringImpl__var_folders_6__qrgykwmd2_g_zcqhyrtwzr240000gn_T_main1_3e09c7_mi_1,a, (*b) , c, p, p1);
   }
 
-  // 当block被copy到堆上时，会根据 结构体内部 对象类型 的修饰符 对block内部引用的 对象的引用计数加1
+  // 当block被copy到堆上时，会根据 结构体内部 对象类型 的修饰符 （strong/weak）对对象进行相应的强/弱引用
   static void __testBlock_block_copy_0(struct __testBlock_block_impl_0*dst, struct __testBlock_block_impl_0*src) {_Block_object_assign((void*)&dst->p, (void*)src->p, 3/*BLOCK_FIELD_IS_OBJECT*/);_Block_object_assign((void*)&dst->p1, (void*)src->p1, 3/*BLOCK_FIELD_IS_OBJECT*/);}
   
-  // 当block从堆上移除，会根据 结构体内部 对象类型 的修饰符 对block内部引用的 对象的引用计数减1
+  // 当block从堆上移除，会根据 结构体内部 对象类型 的修饰符（strong/weak） 移除对对象的强/弱引用
   static void __testBlock_block_dispose_0(struct __testBlock_block_impl_0*src) {_Block_object_dispose((void*)src->p, 3/*BLOCK_FIELD_IS_OBJECT*/);_Block_object_dispose((void*)src->p1, 3/*BLOCK_FIELD_IS_OBJECT*/);}
 
   static struct __testBlock_block_desc_0 {
@@ -138,10 +138,11 @@
   ```
   
   * **局部变量**  
-    1. 局部变量的值会被完整的copy一份保存在结构体内部。block里面的局部变量和外面的变量是完全独立的存在，所以不能在block里面直接修改局部变量的值。   
-    2. 如果局部变量是对象类型时，会同时生成两个函数 **copy** 和 **dispose** 。
-    3. 当block被copy到堆上面时，会调用上面两个函数根据对象的修饰符（strong，weak）对象进行相应的强/弱引用
-    4. 如果block存在栈上，择不会调用两个函数对对象进行相应的内存管理，也即 **栈上的block不会强引用对象**
+    1. 基本数据类型的局部变量的值会被完整的copy一份保存在结构体内部。block里面的局部变量和外面的变量是完全独立的存在，所以不能在block里面直接修改局部变量的值。   
+    2. 如果局部变量是对象类型时，会同时生成两个函数 **copy** 和 **dispose** 用来管理 对象的生命周期   
+       - 当block被copy到堆上面时， **copy** 会调用其内部的 **_Block_object_assign** 函数 根据对象的修饰符（strong，weak）对 对象进行相应的强/弱引用
+       - 当block从堆上移除时， **dispose** 会调用其内部的 **_Block_object_dispose** 函数 移除对象的强/弱引用  
+    3. 当block存在栈上，则不会调用两个函数对对象进行相应的内存管理，也即 **栈上的block不会强引用对象**
    
   * **全局变量**  
     全局变量不会被结构体持有。block里面可以直接访问和修改全局变量
@@ -180,7 +181,7 @@
   __Block_byref_p1_0 *__forwarding;
    int __flags;
    int __size;
-   void (*__Block_byref_id_object_copy)(void*, void*); // 当block被copy到堆上时，会调用该方法对该结构体变量进行相应的内存管理
+   void (*__Block_byref_id_object_copy)(void*, void*); // 当block被copy到堆上时，会调用该方法对该结构体里面的Person对象根据其修饰符（strong，weak）进行相应的强/弱 引用
    void (*__Block_byref_id_object_dispose)(void*);
    Person *__strong p1;
   };
@@ -188,7 +189,7 @@
   // 被__block 修饰的变量 底层实际上是这么一个结构体
   struct __Block_byref_a_1 {
     void *__isa;
-    __Block_byref_a_1 *__forwarding; // 指向自己的一个指针
+    __Block_byref_a_1 *__forwarding; // 指向自己的一个指针，当该结构体被copy到堆上时，栈上结构体里面的__forwarding指针将指向丢上的结构体，见下图
     int __flags;
     int __size;
     int a; // 当初局部变量的值
@@ -243,7 +244,7 @@
   ```
   
   1. 当使用__block修饰一个局部变量时，该变量会被包装成一个__Block_byref_a_1类型的结构体，然后将该结构体指针传递到block内部，所以可以在block内部修改局部变量的值，注意此时修改的是局部变量对应的结构体里面保存的值  
-  2. 当__block 修饰的是一个对象类型时，会在结构体内部生成两个函数 **__Block_byref_id_object_copy** 和 **__Block_byref_id_object_dispose** 当__block变量被copy到堆上时，会通过__block变量的修饰符（strong， weak）来强/弱引用对象
+  2. 当__block 修饰的是一个对象类型时，会在结构体内部生成两个函数 **__Block_byref_id_object_copy** 和 **__Block_byref_id_object_dispose** 当__block变量被copy到堆上时，会通过__block变量的修饰符（strong， weak）来强/弱引用对象。**如果是在mrc环境下，则不管对象是strong还是weak，都不会对对象进行强引用**  
   3. 结构体内部有一个 **__forwarding** 的指针，当block在栈上时，该指针指向自己，当block被copy到堆上时，该指针指向堆上的block，如下图：  
   ![forwarding](https://github.com/liliangde/Images/blob/main/__forwarding.png?raw=true)
   
