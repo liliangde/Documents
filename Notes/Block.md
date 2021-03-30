@@ -255,7 +255,7 @@
 
   * **__NSStackBlock__**  
     访问了局部变量的block，在内存中存储在**栈空间**。对其进行copy操作，会将其从栈空间拷贝到堆空间。  
-    ARC环境下编译器会对该类型的block做优化，将block自动copy到堆上：
+    ARC环境下编译器会对该类型的block做优化，将block自动copy到堆上：  
       1. block作为函数返回值时
       2. 将block赋值给__strong指针时
       3. block作为Cocoa API中方法名含有usingBlock的方法参数时
