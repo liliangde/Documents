@@ -39,7 +39,7 @@
 	```
 	
 #### 重启Xcode 新建工程滚到最下面，不出意外你将看到如下界面
-![](MonkeyDev.png)
+![](https://github.com/liliangde/Images/blob/main/逆向/MonkeyDev.png)
 #### 恭喜你安装成功了
 
 ### MonkeyDev卸载及更新
@@ -56,28 +56,28 @@ sudo /bin/sh -c "$(curl -fsSL https://raw.githubusercontent.com/AloneMonkey/Monk
 ## 实践：微信自动抢红包
 
 1. 从pp助手下载砸壳后的微信应用，<mark>注意：不要连接任何手机至电脑，不然无法下载</mark>
-	![](pp_weichat_download.png)
+	![](https://github.com/liliangde/Images/blob/main/逆向/pp_weichat_download.png)
 2. 打开Xcode 新建工程，选择刚刚安装的MonkeyDev目录下的MonkeyAPP
-	![](weichat_app.png)
+	![](https://github.com/liliangde/Images/blob/main/逆向/weichat_app.png)
 3. 新建工程后你将得到如下目录的工程
-	![](weichat_drap_app.png)
+	![](https://github.com/liliangde/Images/blob/main/逆向/weichat_drap_app.png)
 4. 恭喜，已成功逆向，赶紧跑起来试试啊，command+R
 
 ### Duang～
-![](weichat_crash.png)
+![](https://github.com/liliangde/Images/blob/main/逆向/weichat_crash.png)
 
 别慌，接着command+R
-![](weichat_Home.png)
+![](https://github.com/liliangde/Images/blob/main/逆向/weichat_Home.png)
 
 恭喜您成功逆向了微信
 
 ### class-dump 出微信的所有头文件
 
 1. MonkeyAPP 已经集成了class-dump 直接在Build Settings 里面滚到最下面设置即可
-	![](weichat_buildSetting.png)
+	![](https://github.com/liliangde/Images/blob/main/逆向/weichat_buildSetting.png)
 	
 2. commend+B 将会在工程目录下生成微信头文件的目录，如下图
-	![](weichat_Headers.png)
+	![](https://github.com/liliangde/Images/blob/main/逆向/weichat_Headers.png)
 
 ### 自动抢红包原理
 1. hook微信接收消息的方法
@@ -343,4 +343,4 @@ sudo /bin/sh -c "$(curl -fsSL https://raw.githubusercontent.com/AloneMonkey/Monk
 	```
 	
 3. command + R 试试效果
-![](auto_qianghongbao.MP4)
+![](https://github.com/liliangde/Images/blob/main/逆向/auto_qianghongbao.MP4)
