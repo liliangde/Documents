@@ -14,7 +14,7 @@ import random
 import tempfile
 import sys
 
-# python3 main.py 13651459257 hal362421 2022-06-17 am
+# python3 main.py 13651459257 362421 2022-06-17 am
 
 # 请修改此处，或者保持为空
 configs = {
