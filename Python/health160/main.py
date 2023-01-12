@@ -15,11 +15,11 @@ import tempfile
 import sys
 import os
 
-# python3 main.py 17620480918 588271 2022-11-25 pm
+# python3 main.py 17620480988 588271 2022-11-25 pm
 
 # 请修改此处，或者保持为空
 configs = {
-    'username': '17620480918',  # 记住账号请填入这里
+    'username': '17620480988',  # 记住账号请填入这里
     'password': '588271',  # 记住密码请填入这里
     'city_index': '9',
     'unit_id': '8',
