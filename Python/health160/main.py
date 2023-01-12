@@ -13,13 +13,14 @@ import logging.handlers
 import random
 import tempfile
 import sys
+import os
 
-# python3 main.py 13651459255 362421 2022-06-17 am
+# python3 main.py 17620480918 588271 2022-11-25 pm
 
 # 请修改此处，或者保持为空
 configs = {
-    'username': '',  # 记住账号请填入这里
-    'password': '',  # 记住密码请填入这里
+    'username': '17620480918',  # 记住账号请填入这里
+    'password': '588271',  # 记住密码请填入这里
     'city_index': '9',
     'unit_id': '8',
     'dep_id': '200039160',
@@ -29,10 +30,13 @@ configs = {
     'unit_name': '深圳市宝安区妇幼保健院',
     'dep_name': '早产儿随访门诊（门诊一楼）',
     'doctor_name': '复诊号（陈朝红主任医师）',
-    'start_time': '17:00:00',
+    'start_time': '',
     'access_token': '',
     'mid': ''
 }
+
+# 刷票休眠时间，频率过高会导致刷票接口拒绝请求
+sleep_time = 10
 
 if len(sys.argv) == 5:
     configs['username'] = sys.argv[1]
@@ -41,6 +45,8 @@ if len(sys.argv) == 5:
     configs['times'] = [sys.argv[4]]
 
 # print("您的useragent临时文件夹为，有需要请复制它：%s" % tempfile.gettempdir())
+os.system("cp fake_useragent_0.1.11.json %s" % tempfile.gettempdir())
+
 ua = UserAgent()
 
 PUBLIC_KEY = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDWuY4Gff8FO3BAKetyvNgGrdZM9CMNoe45SzHMXxAPWw6E2idaEjqe5uJFjVx55JW" \
@@ -456,14 +462,19 @@ def set_doctor_configs():
 def set_day_configs():
     if not configs["days"]:
         while True:
-            day_str = str(input("请输入抢号日期(格式：MM-dd 如抢6月6号的 则输入: 06-06）: "))
-            is_format_correct = True if re.match(r'\d{2}-\d{2}', day_str) else False
+            day_str = str(input("请输入抢号日期(格式：MM-dd 如抢6月6号的 则输入: 06-06, 多个日期则输入以,分割）: "))
+            day_list = day_str.split(",")
+            is_format_correct = True if re.match(r'\d{2}-\d{2},?', day_str) else False
+            days = []
             if is_format_correct:
-                day = str(datetime.datetime.now().year) + "-" + day_str
-                configs["days"] = [day]
+                for item in day_list:
+                    day = str(datetime.datetime.now().year) + "-" + item
+                    days.append(day)
+                configs["days"] = days
                 break
             else:
                 print("格式有误，请重新输入！")
+
 
 
 def set_times_configs():
@@ -510,8 +521,6 @@ def run():
     doc_id = configs["doc_id"]
     days = configs["days"]
     times = configs["times"]
-    # 刷票休眠时间，频率过高会导致刷票接口拒绝请求
-    sleep_time = 15
 
     if not configs['start_time']:
         while True:
