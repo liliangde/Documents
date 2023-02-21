@@ -2,20 +2,26 @@ import os
 import re
 import sys
 import getopt
+import subprocess
 
-# 用法示例：python3 FindUnUsedImage.py -p /Users/za/Desktop/zhenaiwang.app
+# 用法示例：python3 FindUnUsedImage.py -p /Users/za/Desktop/zhenaiwang.app -i "bu,zzzz,beauty"
 
 RESULT_FILE_PATH = sys.path[0].strip() + '/' + 'find_un_use_resource.txt'
 
+# 要忽略的前缀
+ignorePrefixs = []
 
 def getInputParm():
-    opts, args = getopt.getopt(sys.argv[1:], '-p:', ['path='])
+    opts, args = getopt.getopt(sys.argv[1:], '-p:-i:')
 
     # 入参判断
     for opt_name, opt_value in opts:
-        if opt_name in ('-p', '--path'):
+        if opt_name in ('-p'):
             # 文件路径
             path = opt_value
+        elif opt_name in ('-i'):
+            global ignorePrefixs
+            ignorePrefixs = opt_value.split(",")
 
     # 必须指定".app"目录
     if not path.endswith('.app'):
@@ -37,13 +43,18 @@ def unzip_asset(paths) -> set:
         lines = info.readlines()
 
         re_image_name = re.compile("    \"Name\" : \".*\"")
-
         for line in lines:
             result = re_image_name.findall(line)
             if result:
                 name = result[0][14:-1]
                 if name not in image_names:
-                    image_names.add(name)
+                    shouldAdd = True
+                    for s in ignorePrefixs:
+                        if name.lower().startswith(s.strip().lower()):
+                            shouldAdd = False
+                            break
+                    if shouldAdd:
+                        image_names.add(name)
     return image_names
 
 
@@ -65,28 +76,29 @@ def check_resource_paths(path):
     all_lottie_paths = set()
     all_svgas = set()
     all_mvs = set()
+    all_mac_o_paths = set()
+
+    print("\033[1;32;40m 正在扫描资源... \033[0m")
+
     for root, dirs, files in os.walk(path):
         for file in files:
             if file.endswith(".car"):
                 assets_car_path = os.path.join(root, file)
                 all_car_paths.add(assets_car_path)
-            if file.endswith(".json"):
+            elif file.endswith(".json"):
                 lottie_path = os.path.join(root, file)
                 all_lottie_paths.add(lottie_path)
-            if file.endswith(".svga"):
+            elif file.endswith(".svga"):
                 all_svgas.add(file)
-            if file.endswith(".mp4") or file.endswith(".mp3") or file.endswith(".aac") or file.endswith(".mov"):
+            elif file.endswith(".mp4") or file.endswith(".mp3") or file.endswith(".aac") or file.endswith(".mov"):
                 all_mvs.add(file)
+            else:
+                path = os.path.join(root, file)
+                output = subprocess.check_output('file %s' % path, shell=True)
+                if 'Mach-O' in str(output):
+                    all_mac_o_paths.add(path)
 
-    all_mac_o_paths = set()
-    appname = path.split('/')[-1].split('.')[0]
-    all_mac_o_paths.add(os.path.join(path, appname))
-    frameworks_path = os.path.join(path, "Frameworks")
-    for file in os.listdir(frameworks_path):
-        if file.startswith("ZA"):
-            framework = file.split(".")[0]
-            mac_o_path = os.path.join(frameworks_path, file, framework)
-            all_mac_o_paths.add(mac_o_path)
+    print("\033[1;32;40m 资源扫描完成，开始解析... \033[0m")
 
     return all_car_paths, all_mac_o_paths, all_lottie_paths, all_svgas, all_mvs
 
@@ -104,7 +116,13 @@ def get_un_use_images(all_car_paths, all_lottie_paths, all_strs):
         if s:
             result_contain_number.append(r)
         else:
-            result.add(r)
+            use = False
+            for st in all_strs:
+                if st.startswith(r):
+                    use = True
+                    break
+            if not use:
+                result.add(r)
 
     for r in result_contain_number:
         use = False
@@ -114,6 +132,7 @@ def get_un_use_images(all_car_paths, all_lottie_paths, all_strs):
                 break
         if not use:
             result.add(r)
+
 
     images_in_lottie = get_images_in_lottie(all_lottie_paths)
 
@@ -185,7 +204,6 @@ def write_to_file(result, title):
     num = 1
     for r in result:
         showStr = ('%d : %s' % (num, r))
-        print(showStr)
         f.write(showStr + "\n")
         num = num + 1
     f.close()
@@ -203,22 +221,22 @@ if __name__ == '__main__':
 
     # 搜索未使用的lottie
     un_use_lotties = get_un_use_lotties(all_lottie_paths, all_strs)
-    print("\n-------------共找到%d个lottie-------------\n" % len(un_use_lotties), un_use_lotties)
+    # print("\n-------------共找到%d个lottie-------------\n" % len(un_use_lotties), un_use_lotties)
     write_to_file(un_use_lotties, "lotties")
 
     # 搜索未使用的svga
     un_use_svgas = get_un_use_svgas(all_svgas, all_strs)
-    print("\n-------------共找到%d个svga-------------\n" % len(un_use_svgas), un_use_svgas)
+    # print("\n-------------共找到%d个svga-------------\n" % len(un_use_svgas), un_use_svgas)
     write_to_file(un_use_svgas, "svgas")
 
     # 搜索未使用的音视频
     un_use_mvs = get_un_use_mvs(all_mvs, all_strs)
-    print("\n-------------共找到%d个mv-------------\n" % len(un_use_mvs), un_use_mvs)
+    # print("\n-------------共找到%d个mv-------------\n" % len(un_use_mvs), un_use_mvs)
     write_to_file(un_use_mvs, "mvs")
 
     # 搜索未使用的图片
     un_use_images = get_un_use_images(all_car_paths, all_lottie_paths, all_strs)
-    print("\n-------------共找到%d个image-------------\n" % len(un_use_images), un_use_images)
+    # print("\n-------------共找到%d个image-------------\n" % len(un_use_images), un_use_images)
     write_to_file(un_use_images, "images")
 
-    print("\n-------------检测完成 请查看%s文件-------------\n" % RESULT_FILE_PATH)
+    print("\n\033[1;32;40m -------------检测完成 请查看%s文件-------------\033[0m \n" % RESULT_FILE_PATH)
