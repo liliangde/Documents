@@ -6,6 +6,7 @@ import re
 import sys
 import getopt
 import FindAllClassIvars
+import subprocess
 
 # 用法示例：python3 FindClassUnRefs.py -p /Users/za/Desktop/zhenaiwang.app -w ZA
 
@@ -55,6 +56,15 @@ def verified_app_path(path) -> []:
     if path.endswith('.app'):
         paths = []
 
+        # 添加主程序macho
+        for file in os.listdir(path):
+            file_path = os.path.join(path, file)
+            if os.path.isfile(file_path):
+                output = subprocess.check_output('file %s' % file_path, shell=True)
+                if 'Mach-O' in str(output):
+                    paths.append(file_path)
+
+        # 添加动态库macho
         frameworks_path = os.path.join(path, "Frameworks")
         for file in os.listdir(frameworks_path):
             if file.startswith("ZA"):
@@ -62,17 +72,14 @@ def verified_app_path(path) -> []:
                 mac_o_path = os.path.join(frameworks_path, file, framework)
                 paths.append(mac_o_path)
 
-        appname = path.split('/')[-1].split('.')[0]
-        path = os.path.join(path, appname)
-        if appname.endswith('-iPad'):
-            path = path.replace(appname, appname[:-5])
-
-        paths.append(path)
         return paths
+
     if not os.path.isfile(path):
         return None
+
     if not os.popen('file -b ' + path).read().startswith('Mach-O'):
         return None
+
     return [path]
 
 
@@ -100,7 +107,7 @@ def pointers_from_binary(line, binary_file_arch):
 
 
 def class_ref_pointers(path, binary_file_arch):
-    print('获取项目中所有被引用的类...')
+    # print('获取项目中所有被引用的类...')
     ref_pointers = set()
     lines = os.popen('/usr/bin/otool -v -s __DATA __objc_classrefs %s' % path).readlines()
     for line in lines:
@@ -114,7 +121,7 @@ def class_ref_pointers(path, binary_file_arch):
 
 
 def class_list_pointers(path, binary_file_arch):
-    print('获取项目中所有的类...')
+    # print('获取项目中所有的类...')
     list_pointers = set()
     lines = os.popen('/usr/bin/otool -v -s __DATA __objc_classlist %s' % path).readlines()
     for line in lines:
@@ -128,7 +135,7 @@ def class_list_pointers(path, binary_file_arch):
 
 
 def filter_use_load_class(path, binary_file_arch):
-    print('获取项目中所有使用load方法的类...')
+    # print('获取项目中所有使用load方法的类...')
     list_load_class = set()
     lines = os.popen('/usr/bin/otool -v -s __DATA __objc_nlclslist %s' % path).readlines()
     for line in lines:
@@ -141,7 +148,7 @@ def filter_use_load_class(path, binary_file_arch):
 
 # 通过符号表中的符号，找到对应的类名
 def class_symbols(path):
-    print('通过符号表中的符号，获取类名...')
+    # print('通过符号表中的符号，获取类名...')
     symbols = {}
     # class symbol format from nm: 0000000103113f68 (__DATA,__objc_data) external _OBJC_CLASS_$_TTEpisodeStatusDetailItemView
     re_class_name = re.compile('(\w{16}) .* _OBJC_CLASS_\$_(.+)')
@@ -150,7 +157,6 @@ def class_symbols(path):
         result = re_class_name.findall(line)
         if result:
             (address, symbol) = result[0]
-            # print(result)
             symbols[address] = symbol
     if len(symbols) == 0:
         exit('Error:class symbols null')
@@ -193,15 +199,17 @@ def find_unref_symbols(paths):
     all_ref_cls = set()
     all_use_load_cls = set()
     all_symbols = {}
+    print("\n\033[1;32;40m正在解析macho文件...\033[0m\n")
     for path in paths:
         binary_file_arch = os.popen('file -b ' + path).read().split(' ')[-1].strip()
-        print("*****" + binary_file_arch)
         all_cls |= class_list_pointers(path, binary_file_arch)
         all_ref_cls |= class_ref_pointers(path, binary_file_arch)
         all_use_load_cls |= filter_use_load_class(path, binary_file_arch)
         all_symbols = {**all_symbols, **class_symbols(path)}
 
     unref_pointers = all_cls - (all_ref_cls | all_use_load_cls)
+
+    print("\n\033[1;32;40mmacho文件解析完成，项目中一共有%d个类\033[0m\n" % len(all_cls))
 
     if len(unref_pointers) == 0:
         exit('木有找到未使用的类')
@@ -222,7 +230,7 @@ def class_unref_symbols(path):
     # file -b output example: Mach-O 64-bit executable arm64
     binary_file_arch = os.popen('file -b ' + path).read().split(' ')[-1].strip()
 
-    print("*****" + binary_file_arch)
+    # print("*****" + binary_file_arch)
 
     # 被使用的类和有load方法的类取合集，然后和所有的类的集合取差集
     unref_pointers = class_list_pointers(path, binary_file_arch) - (
@@ -361,7 +369,7 @@ def write_to_file(unref_symbols, find_ivars_class_list, moudle):
         return
 
     f = open(RESULT_FILE_PATH, 'a')
-    f.write('\n%s中查找到未使用的类: %d个 \n' % (moudle, len(unref_symbols)))
+    f.write('\n%s查找到未使用的类: %d个 \n' % (moudle, len(unref_symbols)))
 
     # num = 1
     # if len(find_ivars_class_list):
@@ -377,7 +385,6 @@ def write_to_file(unref_symbols, find_ivars_class_list, moudle):
     num = 1
     for unref_symbol in unref_symbols:
         showStr = ('%d : %s' % (num, unref_symbol))
-        print(showStr)
         f.write(showStr + "\n")
         num = num + 1
     f.close()
@@ -387,6 +394,7 @@ def new_logic(paths):
     # 查找未使用类结果
     unref_symbols = find_unref_symbols(paths)
 
+    print("\n\033[1;32;40m正在处理解析结果大约需要1-3分钟，请耐心等待... \033[0m\n")
     for path in paths:
         # 检测通过runtime的形式，类使用字符串的形式进行调用,如果查到，可以认为用过
         unref_symbols = filter_use_string_class(path, unref_symbols)
@@ -405,7 +413,7 @@ def new_logic(paths):
     # 整理结果，写入文件
     write_to_file(unref_symbols, find_ivars_class_list, "")
 
-    print('未使用到的类查询完毕: 共%d个，结果已保存在了%s中，【请在项目中二次确认无误后再进行相关操作】' % (len(unref_symbols), RESULT_FILE_PATH))
+    print('\033[1;32;40m处理完成，共检测到%d个未使用到的类，结果已保存在了%s中\033[0m' % (len(unref_symbols), RESULT_FILE_PATH))
 
 
 def old_logic(paths):
@@ -436,19 +444,19 @@ def old_logic(paths):
         # 整理结果，写入文件
         write_to_file(unref_symbols, find_ivars_class_list, moudle)
 
-    print('未使用到的类查询完毕: 共%d个，结果已保存在了%s中，【请在项目中二次确认无误后再进行相关操作】' % (total, RESULT_FILE_PATH))
+    print('\033[1;32;40m 未使用到的类查询完毕: 共%d个，结果已保存在了%s中，【请在项目中二次确认无误后再进行相关操作】\033[0m' % (total, RESULT_FILE_PATH))
 
 
 if __name__ == '__main__':
 
     path, blackList, whiteList = getInputParm()
 
-    paths = verified_app_path(path)
     if not path:
         sys.exit('Error:invalid app path')
 
     if os.path.exists(RESULT_FILE_PATH):
         os.remove(RESULT_FILE_PATH)
 
+    paths = verified_app_path(path)
     # old_logic(paths)
     new_logic(paths)
